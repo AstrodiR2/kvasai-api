@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KvasAI — Бесплатный OpenAI-совместимый API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+pre, code, p, h1, h2, h3, li, .selectable { -webkit-user-select:text; user-select:text; }
+
+:root {
+  --bg:      #07070f;
+  --bg2:     #0c0c1a;
+  --card:    #0f0f1e;
+  --card-h:  #141428;
+  --gold:    #d4af37;
+  --goldb:   #f0cc55;
+  --goldd:   #9a7a1a;
+  --glow:    rgba(212,175,55,0.12);
+  --text:    #eeeef5;
+  --muted:   #7070a0;
+  --dim:     #333352;
+  --border:  rgba(255,255,255,0.06);
+  --borderh: rgba(212,175,55,0.35);
+  --green:   #3dd68c;
+}
+
+html { scroll-behavior:smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── AMBIENT ── */
+#bg-canvas { position:fixed; inset:0; z-index:0; pointer-events:none; }
+
+.orb {
+  position:fixed; border-radius:50%; pointer-events:none; z-index:0;
+}
+.orb-1 {
+  width:800px; height:800px;
+  background: radial-gradient(circle, rgba(212,175,55,0.18) 0%, transparent 68%);
+  filter:blur(70px);
+  top:-260px; left:50%; transform:translateX(-50%);
+  animation: of1 16s ease-in-out infinite;
+}
+.orb-2 {
+  width:500px; height:500px;
+  background: radial-gradient(circle, rgba(90,50,255,0.12) 0%, transparent 70%);
+  filter:blur(80px);
+  bottom:8%; right:-100px;
+  animation: of2 20s ease-in-out infinite;
+}
+.orb-3 {
+  width:340px; height:340px;
+  background: radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%);
+  filter:blur(60px);
+  top:42%; left:-80px;
+  animation: of2 17s ease-in-out infinite reverse;
+}
+
+@keyframes of1 {
+  0%,100% { transform:translateX(-50%) translateY(0) scale(1); }
+  40%      { transform:translateX(-50%) translateY(28px) scale(1.03); }
+  70%      { transform:translateX(-50%) translateY(-18px) scale(0.97); }
+}
+@keyframes of2 {
+  0%,100% { transform:translate(0,0); }
+  50%      { transform:translate(-30px,-40px); }
+}
+
+.grid-bg {
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(212,175,55,0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(212,175,55,0.028) 1px, transparent 1px);
+  background-size:80px 80px;
+  mask-image: radial-gradient(ellipse 75% 50% at 50% 0%, black 0%, transparent 100%);
+}
+
+/* ── HEADER ── */
+header { position:sticky; top:0; z-index:100; }
+.hdr {
+  max-width:1140px; margin:0 auto; padding:15px 28px;
+  display:flex; justify-content:space-between; align-items:center;
+  background:rgba(7,7,15,0.8);
+  backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--border);
+}
+.logo {
+  display:flex; align-items:center; gap:9px;
+  font-family:'Syne', sans-serif; font-size:1.35rem; font-weight:800;
+  color:var(--gold); text-decoration:none; letter-spacing:-0.3px;
+}
+.logo-icon {
+  width:30px; height:30px; flex-shrink:0;
+}
+nav { display:flex; gap:28px; }
+nav a {
+  color:var(--muted); text-decoration:none; font-size:0.85rem; font-weight:500;
+  transition:color 0.2s; position:relative;
+}
+nav a::after {
+  content:''; position:absolute; bottom:-3px; left:0;
+  width:0; height:1.5px; background:var(--gold); transition:width 0.25s;
+}
+nav a:hover { color:var(--gold); }
+nav a:hover::after { width:100%; }
+@media(max-width:640px){ nav{display:none;} .hdr{padding:13px 18px;} }
+
+/* ── HERO ── */
+.hero {
+  position:relative; z-index:1;
+  max-width:1140px; margin:0 auto;
+  padding:110px 28px 70px;
+  display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center;
+}
+@media(max-width:860px){
+  .hero { grid-template-columns:1fr; padding:80px 18px 60px; text-align:center; }
+  .hero-visual { display:none; }
+}
+
+.hero-left { animation:fadeUp 0.7s ease both; }
+
+.badge {
+  display:inline-flex; align-items:center; gap:7px;
+  background:rgba(212,175,55,0.06);
+  border:1px solid rgba(212,175,55,0.2);
+  border-radius:100px; padding:5px 15px;
+  font-size:0.72rem; font-weight:700; letter-spacing:0.1em;
+  text-transform:uppercase; color:var(--gold); margin-bottom:28px;
+}
+.dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--green); box-shadow:0 0 8px var(--green);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }
+
+h1 {
+  font-family:'Syne', sans-serif;
+  font-size: clamp(2.8rem, 7vw, 5rem);
+  font-weight:800; letter-spacing:-1.5px; line-height:1.02;
+  margin-bottom:22px; padding-bottom:4px;
+}
+.h1-accent {
+  background:linear-gradient(118deg, var(--goldb) 0%, var(--gold) 50%, #a07010 100%);
+  background-size:200%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+  animation:gshift 5s ease infinite;
+}
+@keyframes gshift { 0%,100%{background-position:0%} 50%{background-position:100%} }
+
+.hero-sub {
+  font-size:1.05rem; color:var(--muted); line-height:1.8;
+  max-width:440px; margin-bottom:40px; font-weight:400;
+}
+@media(max-width:860px){ .hero-sub { margin:0 auto 36px; } }
+
+.actions { display:flex; gap:12px; flex-wrap:wrap; }
+@media(max-width:860px){ .actions { justify-content:center; } }
+
+.btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:13px 26px; border-radius:10px;
+  border:none; font-family:inherit; font-size:0.92rem; font-weight:600;
+  cursor:pointer; text-decoration:none; transition:all 0.2s; outline:none;
+}
+.btn-primary {
+  background:linear-gradient(135deg, var(--gold), var(--goldb));
+  color:#080810;
+  box-shadow:0 6px 24px rgba(212,175,55,0.28);
+}
+.btn-primary:hover { transform:translateY(-3px) scale(1.02); box-shadow:0 12px 36px rgba(212,175,55,0.4); }
+.btn-primary:active { transform:translateY(-1px); }
+
+.btn-ghost {
+  background:transparent; color:var(--muted);
+  border:1.5px solid var(--border);
+}
+.btn-ghost:hover { color:var(--gold); border-color:rgba(212,175,55,0.3); background:var(--glow); transform:translateY(-2px); }
+
+/* Hero visual — animated terminal */
+.hero-visual {
+  position:relative; animation:fadeUp 0.7s ease 0.15s both;
+}
+.terminal {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:16px; overflow:hidden;
+  box-shadow:0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.06);
+}
+.term-bar {
+  display:flex; align-items:center; gap:7px;
+  padding:13px 18px; background:var(--bg2);
+  border-bottom:1px solid var(--border);
+}
+.term-dot { width:10px; height:10px; border-radius:50%; }
+.term-dot:nth-child(1){background:#ff5f56;}
+.term-dot:nth-child(2){background:#ffbd2e;}
+.term-dot:nth-child(3){background:#27c93f;}
+.term-title { font-size:0.72rem; color:var(--dim); margin-left:6px; font-family:'JetBrains Mono', monospace; }
+.term-body { padding:22px 22px 26px; font-family:'JetBrains Mono', monospace; font-size:0.8rem; line-height:1.9; }
+.tc { color:var(--muted); }
+.tg { color:var(--goldb); }
+.ts { color:#c3e88d; }
+.tk { color:#c792ea; }
+.tv { color:#82aaff; }
+.tcursor {
+  display:inline-block; width:9px; height:1em;
+  background:var(--gold); vertical-align:text-bottom;
+  animation:blink 1.1s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── STATS ── */
+.stats {
+  position:relative; z-index:1;
+  max-width:1140px; margin:0 auto; padding:0 28px;
+}
+@media(max-width:768px){ .stats{padding:0 18px;} }
+.stats-inner {
+  display:grid; grid-template-columns:repeat(4,1fr);
+  gap:12px; padding:40px 0;
+  border-top:1px solid var(--border);
+}
+@media(max-width:640px){ .stats-inner{grid-template-columns:repeat(2,1fr);} }
+.stat {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:14px; padding:22px 16px; text-align:center;
+  position:relative; overflow:hidden;
+  transition:border-color 0.3s, transform 0.3s;
+}
+.stat::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(circle at 50% 0%, rgba(212,175,55,0.08), transparent 65%);
+  opacity:0; transition:opacity 0.3s;
+}
+.stat:hover { border-color:var(--borderh); transform:translateY(-4px); }
+.stat:hover::before { opacity:1; }
+.stat-n { font-family:'Syne',sans-serif; font-size:2rem; font-weight:800; color:var(--gold); letter-spacing:-1px; position:relative; }
+.stat-l { font-size:0.76rem; color:var(--dim); margin-top:2px; position:relative; }
+
+/* ── SECTIONS ── */
+.section {
+  position:relative; z-index:1;
+  max-width:1140px; margin:120px auto 0; padding:0 28px;
+}
+@media(max-width:768px){ .section{margin-top:80px; padding:0 18px;} }
+.eyebrow { font-size:0.68rem; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--gold); margin-bottom:10px; }
+.sec-title {
+  font-family:'Syne', sans-serif;
+  font-size:clamp(1.8rem, 3.5vw, 2.6rem); font-weight:800; letter-spacing:-1.5px;
+  margin-bottom:52px; line-height:1.1;
+}
+.sec-title span { color:var(--gold); }
+
+/* ── FEATURES ── */
+.features-grid {
+  display:grid;
+  grid-template-columns:2fr 1fr 1fr;
+  grid-template-rows:auto auto;
+  gap:14px;
+}
+@media(max-width:900px){ .features-grid{grid-template-columns:1fr 1fr;} }
+@media(max-width:520px){ .features-grid{grid-template-columns:1fr;} }
+
+.fc {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:16px; padding:30px 26px;
+  position:relative; overflow:hidden;
+  transition:border-color 0.3s, transform 0.3s, background 0.3s, box-shadow 0.3s;
+}
+.fc:hover {
+  border-color:var(--borderh); background:var(--card-h);
+  transform:translateY(-6px);
+  box-shadow:0 20px 50px rgba(0,0,0,0.45);
+}
+.fc-wide { grid-column:1; grid-row:1/3; display:flex; flex-direction:column; }
+@media(max-width:900px){ .fc-wide{grid-column:auto; grid-row:auto;} }
+
+.fc-icon {
+  width:44px; height:44px; border-radius:10px;
+  background:rgba(212,175,55,0.07); border:1px solid rgba(212,175,55,0.14);
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom:18px; flex-shrink:0;
+  transition:transform 0.3s, box-shadow 0.3s;
+}
+.fc:hover .fc-icon { transform:scale(1.1) rotate(-3deg); box-shadow:0 0 20px rgba(212,175,55,0.22); }
+.fc-icon svg { width:22px; height:22px; }
+
+.fc h3 { font-family:'Syne',sans-serif; font-size:1rem; font-weight:700; margin-bottom:9px; letter-spacing:-0.2px; }
+.fc p { color:var(--muted); font-size:0.86rem; line-height:1.7; }
+.fc-wide p { flex:1; }
+
+.fc-big-num {
+  font-family:'Syne',sans-serif; font-size:3.5rem; font-weight:800;
+  color:rgba(212,175,55,0.12); letter-spacing:-3px; line-height:1;
+  margin-top:auto; padding-top:20px;
+}
+
+/* ── STEPS ── */
+.steps-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+@media(max-width:768px){ .steps-grid{grid-template-columns:1fr;} }
+
+.step {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:16px; padding:30px 26px;
+  display:flex; flex-direction:column; gap:14px;
+  position:relative; overflow:hidden;
+  transition:border-color 0.3s, transform 0.3s, background 0.3s;
+}
+.step:hover { border-color:var(--borderh); background:var(--card-h); transform:translateY(-5px); }
+.step-num {
+  width:42px; height:42px; border-radius:10px; flex-shrink:0;
+  background:linear-gradient(135deg, var(--gold), var(--goldb));
+  color:#080810; font-family:'Syne',sans-serif; font-size:1.15rem; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 5px 16px rgba(212,175,55,0.28);
+  transition:transform 0.3s, box-shadow 0.3s;
+}
+.step:hover .step-num { transform:scale(1.08); box-shadow:0 8px 24px rgba(212,175,55,0.42); }
+.step h3 { font-family:'Syne',sans-serif; font-size:1rem; font-weight:700; letter-spacing:-0.2px; }
+.step p { color:var(--muted); font-size:0.86rem; line-height:1.72; flex:1; }
+.step-link {
+  display:inline-flex; align-items:center; gap:5px;
+  color:var(--gold); text-decoration:none; font-size:0.86rem; font-weight:600;
+  transition:gap 0.2s, color 0.2s;
+}
+.step-link:hover { gap:10px; color:var(--goldb); }
+
+/* ── MODELS ── */
+.models-wrap {
+  position:relative; z-index:1;
+  max-width:1140px; margin:120px auto 0; padding:0 28px;
+}
+@media(max-width:768px){ .models-wrap{margin-top:80px; padding:0 18px;} }
+.models-box {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:20px; padding:44px 40px;
+  position:relative; overflow:hidden;
+}
+.models-box::after {
+  content:''; position:absolute; top:-60px; right:-60px;
+  width:320px; height:320px; border-radius:50%;
+  background:radial-gradient(circle, rgba(212,175,55,0.06) 0%, transparent 70%);
+  pointer-events:none;
+}
+@media(max-width:640px){ .models-box{padding:24px 18px;} }
+.models-header {
+  display:flex; align-items:flex-end; justify-content:space-between;
+  margin-bottom:26px; flex-wrap:wrap; gap:12px; position:relative; z-index:1;
+}
+.models-hint { font-size:0.76rem; color:var(--dim); }
+.models-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr));
+  gap:9px; max-height:380px; overflow-y:auto; padding-right:4px;
+  position:relative; z-index:1;
+}
+.models-grid::-webkit-scrollbar { width:3px; }
+.models-grid::-webkit-scrollbar-thumb { background:var(--goldd); border-radius:3px; }
+.model-chip {
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:8px; padding:10px 12px;
+  font-family:'JetBrains Mono', monospace; font-size:0.72rem;
+  color:var(--muted); cursor:pointer; word-break:break-all;
+  transition:all 0.18s;
+}
+.model-chip:hover { border-color:var(--borderh); color:var(--gold); background:var(--glow); transform:translateY(-2px); }
+@media(max-width:640px){ .models-grid{grid-template-columns:1fr 1fr;} }
+
+/* ── CODE ── */
+.code-wrap {
+  position:relative; z-index:1;
+  max-width:1140px; margin:120px auto 0; padding:0 28px;
+}
+@media(max-width:768px){ .code-wrap{margin-top:80px; padding:0 18px;} }
+
+.url-box {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:12px; padding:16px 20px;
+  display:flex; justify-content:space-between; align-items:center;
+  gap:14px; margin-bottom:16px; flex-wrap:wrap;
+  transition:border-color 0.2s;
+}
+.url-box:hover { border-color:rgba(212,175,55,0.18); }
+.url-label { font-size:0.64rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--dim); margin-bottom:3px; }
+.url-val { font-family:'JetBrains Mono', monospace; font-size:0.85rem; color:var(--goldb); }
+
+.code-tabs { display:flex; gap:3px; flex-wrap:wrap; }
+.ctab {
+  background:var(--card); border:1px solid var(--border); border-bottom:none;
+  border-radius:8px 8px 0 0; padding:8px 16px;
+  font-family:inherit; font-size:0.78rem; font-weight:600; color:var(--dim);
+  cursor:pointer; transition:all 0.2s; outline:none;
+}
+.ctab:hover { color:var(--gold); }
+.ctab.active { background:var(--bg2); color:var(--gold); border-color:var(--borderh); border-bottom-color:var(--bg2); position:relative; z-index:1; }
+.cblock {
+  display:none; background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:0 12px 12px 12px; overflow:hidden;
+}
+.cblock.active { display:block; animation:tabIn 0.2s ease; }
+@keyframes tabIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+.cbar {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 18px; border-bottom:1px solid var(--border);
+  background:rgba(255,255,255,0.015);
+}
+.clang { font-size:0.67rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--dim); }
+.cbody { padding:20px; overflow-x:auto; }
+.cbody pre { font-family:'JetBrains Mono',monospace; font-size:0.81rem; color:var(--text); line-height:1.85; margin:0; }
+.hk { color:#c792ea; } .hs { color:#c3e88d; } .hu { color:var(--goldb); }
+
+/* ── COPY BTN ── */
+.cpbtn {
+  background:transparent; border:1px solid var(--border);
+  color:var(--dim); padding:5px 12px; border-radius:6px;
+  font-family:inherit; font-size:0.73rem; font-weight:600;
+  cursor:pointer; transition:all 0.2s; outline:none;
+}
+.cpbtn:hover { border-color:var(--gold); color:var(--gold); background:var(--glow); }
+.cpbtn.copied { border-color:var(--green); color:var(--green); background:rgba(61,214,140,0.07); }
+
+/* ── FOOTER ── */
+footer {
+  position:relative; z-index:1;
+  max-width:1140px; margin:120px auto 0; padding:56px 28px 36px;
+  border-top:1px solid var(--border);
+}
+@media(max-width:768px){ footer{padding:44px 18px 32px; margin-top:80px;} }
+.footer-grid {
+  display:grid; grid-template-columns:2fr 1fr 1fr; gap:44px; margin-bottom:36px;
+}
+@media(max-width:768px){ .footer-grid{grid-template-columns:1fr 1fr;} .fab{grid-column:1/-1;} }
+@media(max-width:460px){ .footer-grid{grid-template-columns:1fr;} }
+.footer-logo { font-family:'Syne',sans-serif; font-size:1.2rem; font-weight:800; color:var(--gold); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.fab p { font-size:0.84rem; color:var(--dim); line-height:1.75; max-width:280px; }
+.footer-col h4 { font-size:0.67rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--dim); margin-bottom:14px; }
+.footer-col a { display:block; color:var(--muted); text-decoration:none; font-size:0.84rem; margin-bottom:9px; transition:color 0.2s; font-weight:500; }
+.footer-col a:hover { color:var(--gold); }
+.footer-bottom {
+  display:flex; justify-content:space-between; align-items:center;
+  padding-top:20px; border-top:1px solid var(--border); flex-wrap:wrap; gap:8px;
+}
+.footer-bottom p, .footer-bottom a { font-size:0.78rem; color:var(--dim); text-decoration:none; }
+.footer-bottom a:hover { color:var(--gold); }
+
+/* ── LIVE DEMO ── */
+.demo-wrap {
+  position:relative; z-index:1;
+  max-width:1140px; margin:120px auto 0; padding:0 28px;
+}
+@media(max-width:768px){ .demo-wrap{margin-top:80px; padding:0 18px;} }
+.demo-box {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:20px; padding:44px 40px;
+  position:relative; overflow:hidden;
+}
+.demo-box::before {
+  content:''; position:absolute; bottom:-80px; left:-80px;
+  width:320px; height:320px; border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle, rgba(212,175,55,0.06) 0%, transparent 70%);
+}
+@media(max-width:640px){ .demo-box{padding:24px 18px;} }
+
+.demo-header { margin-bottom:28px; position:relative; z-index:1; }
+.demo-controls {
+  display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;
+  position:relative; z-index:1;
+}
+.demo-select {
+  background:var(--bg2); border:1px solid var(--border);
+  color:var(--text); border-radius:10px; padding:10px 14px;
+  font-family:'JetBrains Mono',monospace; font-size:0.8rem;
+  flex:1; min-width:200px; outline:none; cursor:pointer;
+  transition:border-color 0.2s;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237070a0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 12px center;
+  padding-right:32px;
+}
+.demo-select:focus { border-color:var(--borderh); }
+.demo-select option { background:var(--bg2); }
+
+.demo-input-row {
+  display:flex; gap:10px; position:relative; z-index:1;
+}
+.demo-input {
+  flex:1; background:var(--bg2); border:1px solid var(--border);
+  color:var(--text); border-radius:10px; padding:12px 16px;
+  font-family:'Inter',sans-serif; font-size:0.9rem; outline:none;
+  transition:border-color 0.2s; resize:none; height:52px;
+  line-height:1.4;
+}
+.demo-input:focus { border-color:var(--borderh); }
+.demo-input::placeholder { color:var(--dim); }
+.demo-send {
+  background:linear-gradient(135deg, var(--gold), var(--goldb));
+  color:#080810; border:none; border-radius:10px;
+  width:52px; height:52px; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+  box-shadow:0 4px 16px rgba(212,175,55,0.28);
+}
+.demo-send:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(212,175,55,0.4); }
+.demo-send:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+.demo-send svg { width:20px; height:20px; }
+
+.demo-output {
+  margin-top:16px; position:relative; z-index:1;
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:12px; padding:18px 20px; min-height:80px;
+  font-size:0.88rem; line-height:1.75; color:var(--text);
+  display:none; white-space:pre-wrap; word-break:break-word;
+}
+.demo-output.visible { display:block; animation:tabIn 0.3s ease; }
+.demo-output.loading { display:flex; align-items:center; justify-content:center; }
+.demo-limit {
+  margin-top:10px; font-size:0.76rem; color:var(--dim);
+  text-align:right; position:relative; z-index:1;
+}
+.demo-limit span { color:var(--gold); }
+
+/* ── SCROLL-TO-TOP ── */
+.to-top {
+  position:fixed; bottom:22px; right:22px; z-index:200;
+  width:46px; height:46px; border-radius:50%;
+  background:var(--card); border:1.5px solid var(--borderh); color:var(--gold);
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:all 0.3s; opacity:0; transform:translateY(16px);
+  box-shadow:0 6px 24px rgba(0,0,0,0.5);
+}
+.to-top::before {
+  content:''; display:block; width:11px; height:11px;
+  border-left:2.5px solid var(--gold); border-top:2.5px solid var(--gold);
+  transform:rotate(45deg) translate(2px, 2px); transition:border-color 0.2s;
+}
+.to-top.show { opacity:1; transform:translateY(0); }
+.to-top:hover { background:var(--card-h); border-color:var(--gold); transform:translateY(-3px); box-shadow:0 10px 28px rgba(212,175,55,0.2); }
+
+/* ── REVEAL ── */
+.reveal { opacity:0; transform:translateY(26px); transition:opacity 0.6s ease, transform 0.6s ease; }
+.reveal.in { opacity:1; transform:translateY(0); }
+.d1{transition-delay:0.07s} .d2{transition-delay:0.16s} .d3{transition-delay:0.25s} .d4{transition-delay:0.34s}
+
+/* ── DOT LOADER ── */
+.dots { display:inline-flex; gap:5px; align-items:center; }
+.dots span { width:6px; height:6px; border-radius:50%; background:var(--gold); animation:dp 1.3s ease-in-out infinite; }
+.dots span:nth-child(2){animation-delay:0.18s} .dots span:nth-child(3){animation-delay:0.36s}
+@keyframes dp { 0%,80%,100%{opacity:.2;transform:scale(.75)} 40%{opacity:1;transform:scale(1)} }
+
+@keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+@media(prefers-reduced-motion:reduce){ *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important} }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+<div class="grid-bg"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="hdr">
+    <a href="#" class="logo">
+      <svg class="logo-icon" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="30" height="30" rx="8" fill="rgba(212,175,55,0.12)"/>
+        <!-- mug body -->
+        <rect x="6" y="10" width="13" height="14" rx="2" fill="none" stroke="#d4af37" stroke-width="1.8"/>
+        <!-- handle -->
+        <path d="M19 13 Q25 13 25 17 Q25 21 19 21" fill="none" stroke="#d4af37" stroke-width="1.8" stroke-linecap="round"/>
+        <!-- foam -->
+        <path d="M6 10 Q9 7 12.5 9.5 Q15 7 19 10" fill="none" stroke="#d4af37" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      KvasAI
+    </a>
+    <nav>
+      <a href="#features">Преимущества</a>
+      <a href="#start">Подключение</a>
+      <a href="#models">Модели</a>
+      <a href="#demo">Demo</a>
+      <a href="#docs">Примеры</a>
+    </nav>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="badge"><span class="dot"></span>Работает сейчас</div>
+    <h1>API без<br><span class="h1-accent">границ</span><br>и ценников</h1>
+    <p class="hero-sub">Llama, Mistral, DeepSeek, Qwen и ещё десятки моделей через один эндпоинт. Без карты, без лимитов, совместим с OpenAI.</p>
+    <div class="actions">
+      <a href="https://t.me/KvasAi_bot" target="_blank" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.6 2.4L1.2 7.1c-.8.3-.8.8-.1 1l3.1 1 1.2 3.6c.2.5.4.7.8.7.3 0 .5-.1.7-.3l1.7-1.7 3.2 2.4c.6.3 1 .2 1.2-.5l2.1-9.9c.3-.9-.3-1.3-1.1-1z" fill="currentColor"/></svg>
+        Получить ключ в боте
+      </a>
+      <button class="btn btn-ghost" onclick="document.querySelector('#start').scrollIntoView({behavior:'smooth'})">
+        Как подключиться
+      </button>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="terminal">
+      <div class="term-bar">
+        <span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+        <span class="term-title">kvasai_demo.py</span>
+      </div>
+      <div class="term-body">
+        <div><span class="tk">import</span> <span class="tv">openai</span></div>
+        <div>&nbsp;</div>
+        <div><span class="tv">client</span> <span class="tc">= openai.OpenAI(</span></div>
+        <div>&nbsp;&nbsp;<span class="tv">base_url</span><span class="tc">=</span><span class="ts">"https://kvasai.app/v1"</span><span class="tc">,</span></div>
+        <div>&nbsp;&nbsp;<span class="tv">api_key</span><span class="tc">=</span><span class="ts">"kvs-..."</span></div>
+        <div><span class="tc">)</span></div>
+        <div>&nbsp;</div>
+        <div><span class="tv">resp</span> <span class="tc">= client.chat.completions.create(</span></div>
+        <div>&nbsp;&nbsp;<span class="tv">model</span><span class="tc">=</span><span class="ts">"llama-3.3-70b-versatile"</span><span class="tc">,</span></div>
+        <div>&nbsp;&nbsp;<span class="tv">messages</span><span class="tc">=[{</span><span class="ts">"role"</span><span class="tc">:</span><span class="ts">"user"</span><span class="tc">,</span></div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ts">"content"</span><span class="tc">:</span><span class="ts">"Привет!"</span><span class="tc">}]</span></div>
+        <div><span class="tc">)</span></div>
+        <div>&nbsp;</div>
+        <div><span class="tg"># ✓ 200 OK — 0.41s</span></div>
+        <div><span class="tk">print</span><span class="tc">(resp.choices[0].message.content)</span><span class="tcursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stats-inner reveal">
+    <div class="stat">
+      <div class="stat-n" id="model-count"><div class="dots"><span></span><span></span><span></span></div></div>
+      <div class="stat-l">Моделей</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n">∞</div>
+      <div class="stat-l">Запросов в день</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n">24/7</div>
+      <div class="stat-l">Без простоев</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n">&lt;1s</div>
+      <div class="stat-l">Первый токен</div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="eyebrow reveal">Преимущества</div>
+  <h2 class="sec-title reveal">Зачем <span>KvasAI?</span></h2>
+
+  <div class="features-grid">
+    <!-- Wide card -->
+    <div class="fc fc-wide reveal d1">
+      <div class="fc-icon">
+        <svg viewBox="0 0 22 22" fill="none" stroke="#d4af37" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 8 13 12 15 18 7"/>
+          <circle cx="4" cy="17" r="1.5" fill="#d4af37" stroke="none"/>
+          <circle cx="18" cy="7" r="1.5" fill="#d4af37" stroke="none"/>
+        </svg>
+      </div>
+      <h3>Подключается туда, где уже стоит OpenAI</h3>
+      <p>Меняешь один параметр — base_url — и всё готово. Open WebUI, LiteLLM, SillyTavern, продакшн-бекенд. Ни строчки рефакторинга.</p>
+      <div class="fc-big-num">API</div>
+    </div>
+
+    <div class="fc reveal d2">
+      <div class="fc-icon">
+        <svg viewBox="0 0 22 22" fill="none" stroke="#d4af37" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 2L13.5 8H20L14.8 11.5L17 18L11 14L5 18L7.2 11.5L2 8H8.5Z"/>
+        </svg>
+      </div>
+      <h3>Навсегда бесплатно</h3>
+      <p>Никаких тарифов, никаких «бесплатного пробного периода». Просто работает.</p>
+    </div>
+
+    <div class="fc reveal d3">
+      <div class="fc-icon">
+        <svg viewBox="0 0 22 22" fill="none" stroke="#d4af37" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="2"/>
+          <rect x="12" y="3" width="7" height="7" rx="2"/>
+          <rect x="3" y="12" width="7" height="7" rx="2"/>
+          <rect x="12" y="12" width="7" height="7" rx="2"/>
+        </svg>
+      </div>
+      <h3>Десятки моделей</h3>
+      <p>Llama, Mistral, DeepSeek, Qwen, Gemma — в одном месте.</p>
+    </div>
+
+    <div class="fc reveal d2">
+      <div class="fc-icon">
+        <svg viewBox="0 0 22 22" fill="none" stroke="#d4af37" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M11 7v4l3 2"/>
+        </svg>
+      </div>
+      <h3>Быстро</h3>
+      <p>Первый токен меньше секунды. Инфраструктура не дросселирует по тарифу.</p>
+    </div>
+
+    <div class="fc reveal d3">
+      <div class="fc-icon">
+        <svg viewBox="0 0 22 22" fill="none" stroke="#d4af37" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L15.5 8.5H21L16.5 12.5L18.5 19L12 15L5.5 19L7.5 12.5L3 8.5H8.5Z"/>
+          <circle cx="12" cy="11" r="2" fill="#d4af37" stroke="none"/>
+        </svg>
+      </div>
+      <h3>Без регистрации карты</h3>
+      <p>Только заявка и ключ. Ни платёжных данных, ни подписок.</p>
+    </div>
+  </div>
+</section>
+
+<!-- STEPS -->
+<section class="section" id="start">
+  <div class="eyebrow reveal">Быстрый старт</div>
+  <h2 class="sec-title reveal">Три шага до <span>первого запроса</span></h2>
+
+  <div class="steps-grid">
+    <div class="step reveal d1">
+      <div class="step-num">1</div>
+      <h3>Открой бота</h3>
+      <p>Перейди в <a href="https://t.me/KvasAi_bot" target="_blank" style="color:var(--gold)">@KvasAi_bot</a> в Telegram и напиши /getkey — ключ выдаётся мгновенно.</p>
+      <a href="https://t.me/KvasAi_bot" target="_blank" class="step-link">Открыть бота →</a>
+    </div>
+    <div class="step reveal d2">
+      <div class="step-num">2</div>
+      <h3>Получи ключ</h3>
+      <p>Бот сразу выдаст ключ в формате <code style="font-family:'JetBrains Mono',monospace;color:var(--gold);font-size:0.83em;">kvs-xxx...</code>. Сохрани его — восстановить нельзя.</p>
+    </div>
+    <div class="step reveal d3">
+      <div class="step-num">3</div>
+      <h3>Подключи</h3>
+      <p>Вставь Base URL и ключ в любой клиент с поддержкой OpenAI API — и всё работает.</p>
+      <a href="#docs" class="step-link" onclick="document.querySelector('#docs').scrollIntoView({behavior:'smooth'});return false;">Посмотреть примеры →</a>
+    </div>
+  </div>
+</section>
+
+<!-- MODELS -->
+<div class="models-wrap" id="models">
+  <div class="models-box reveal">
+    <div class="models-header">
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Каталог</div>
+        <h2 class="sec-title" style="margin-bottom:0">Доступные <span>модели</span></h2>
+      </div>
+      <span class="models-hint">Нажми — скопируется</span>
+    </div>
+    <div class="models-grid" id="models-grid">
+      <div style="grid-column:1/-1;text-align:center;padding:30px">
+        <div class="dots"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CODE -->
+<section class="code-wrap" id="docs">
+  <div class="eyebrow reveal">Документация</div>
+  <h2 class="sec-title reveal" style="margin-bottom:24px">Примеры <span>использования</span></h2>
+
+  <div class="url-box reveal">
+    <div>
+      <div class="url-label">Base URL</div>
+      <div class="url-val selectable">https://web-production-293e6.up.railway.app/v1</div>
+    </div>
+    <button class="cpbtn" onclick="copyText('https://web-production-293e6.up.railway.app/v1',this)">Копировать</button>
+  </div>
+
+  <div class="reveal">
+    <div class="code-tabs">
+      <button class="ctab active" onclick="switchTab('curl',this)">cURL</button>
+      <button class="ctab" onclick="switchTab('python',this)">Python</button>
+      <button class="ctab" onclick="switchTab('js',this)">JavaScript</button>
+    </div>
+
+    <div class="cblock active" id="tab-curl">
+      <div class="cbar"><span class="clang">Shell</span><button class="cpbtn" onclick="copyBlock('cc',this)">Копировать</button></div>
+      <div class="cbody"><pre id="cc"><span class="hk">curl</span> -X POST <span class="hu">https://web-production-293e6.up.railway.app/v1/chat/completions</span> \
+  -H <span class="hs">"Authorization: Bearer YOUR_API_KEY"</span> \
+  -H <span class="hs">"Content-Type: application/json"</span> \
+  -d <span class="hs">'{"model":"llama-3.3-70b-versatile","messages":[{"role":"user","content":"Привет!"}]}'</span></pre></div>
+    </div>
+
+    <div class="cblock" id="tab-python">
+      <div class="cbar"><span class="clang">Python</span><button class="cpbtn" onclick="copyBlock('cp',this)">Копировать</button></div>
+      <div class="cbody"><pre id="cp"><span class="hk">import</span> httpx
+
+api_key = <span class="hs">"YOUR_API_KEY"</span>
+base_url = <span class="hs">"https://web-production-293e6.up.railway.app/v1"</span>
+
+response = httpx.post(
+    f<span class="hs">"{base_url}/chat/completions"</span>,
+    headers={<span class="hs">"Authorization"</span>: f<span class="hs">"Bearer {api_key}"</span>},
+    json={
+        <span class="hs">"model"</span>: <span class="hs">"llama-3.3-70b-versatile"</span>,
+        <span class="hs">"messages"</span>: [{<span class="hs">"role"</span>: <span class="hs">"user"</span>, <span class="hs">"content"</span>: <span class="hs">"Привет!"</span>}]
+    }
+)
+print(response.json())</pre></div>
+    </div>
+
+    <div class="cblock" id="tab-js">
+      <div class="cbar"><span class="clang">JavaScript</span><button class="cpbtn" onclick="copyBlock('cj',this)">Копировать</button></div>
+      <div class="cbody"><pre id="cj"><span class="hk">const</span> apiKey  = <span class="hs">"YOUR_API_KEY"</span>;
+<span class="hk">const</span> baseUrl = <span class="hs">"https://web-production-293e6.up.railway.app/v1"</span>;
+
+<span class="hk">const</span> res = <span class="hk">await</span> fetch(<span class="hs">`${baseUrl}/chat/completions`</span>, {
+  method: <span class="hs">"POST"</span>,
+  headers: {
+    <span class="hs">"Authorization"</span>: <span class="hs">`Bearer ${apiKey}`</span>,
+    <span class="hs">"Content-Type"</span>: <span class="hs">"application/json"</span>
+  },
+  body: JSON.stringify({
+    model: <span class="hs">"llama-3.3-70b-versatile"</span>,
+    messages: [{ role: <span class="hs">"user"</span>, content: <span class="hs">"Привет!"</span> }]
+  })
+});
+console.log(<span class="hk">await</span> res.json());</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- LIVE DEMO -->
+<div class="demo-wrap" id="demo">
+  <div class="demo-box reveal">
+    <div class="demo-header">
+      <div class="eyebrow" style="margin-bottom:8px">Live Demo</div>
+      <h2 class="sec-title" style="margin-bottom:4px">Попробуй <span>прямо сейчас</span></h2>
+      <p style="color:var(--muted);font-size:0.86rem">Без ключа, без регистрации — просто спроси</p>
+    </div>
+    <div class="demo-controls">
+      <select class="demo-select" id="demo-model">
+        <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Groq)</option>
+        <option value="llama3.3-70b">llama3.3-70b (Cerebras)</option>
+        <option value="Meta-Llama-3.3-70B-Instruct">Meta-Llama-3.3-70B (SambaNova)</option>
+        <option value="mistral-small-latest">mistral-small-latest (Mistral)</option>
+        <option value="DeepSeek-R1">DeepSeek-R1 (SambaNova)</option>
+        <option value="Qwen3-32B">Qwen3-32B (SambaNova)</option>
+      </select>
+    </div>
+    <div class="demo-input-row">
+      <textarea class="demo-input" id="demo-input" placeholder="Спроси что-нибудь..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendDemo();}"></textarea>
+      <button class="demo-send" id="demo-send" onclick="sendDemo()">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 10l14-7-7 14V10H3z"/>
+        </svg>
+      </button>
+    </div>
+    <div class="demo-output" id="demo-output"></div>
+    <div class="demo-limit">Осталось бесплатных вопросов сегодня: <span id="demo-left">3</span> / 3</div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-grid">
+    <div class="fab">
+      <div class="footer-logo">
+        <svg width="22" height="22" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="30" height="30" rx="8" fill="rgba(212,175,55,0.12)"/>
+          <rect x="6" y="10" width="13" height="14" rx="2" fill="none" stroke="#d4af37" stroke-width="1.8"/>
+          <path d="M19 13 Q25 13 25 17 Q25 21 19 21" fill="none" stroke="#d4af37" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M6 10 Q9 7 12.5 9.5 Q15 7 19 10" fill="none" stroke="#d4af37" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        KvasAI
+      </div>
+      <p>Бесплатный OpenAI-совместимый API. Подключается везде, работает без ограничений.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Навигация</h4>
+      <a href="https://t.me/KvasAi_bot" target="_blank">Получить ключ</a>
+      <a href="#models">Модели</a>
+      <a href="#start">Подключение</a>
+    </div>
+    <div class="footer-col">
+      <h4>Ресурсы</h4>
+      <a href="#features">Преимущества</a>
+      <a href="#docs">Примеры кода</a>
+      <a href="https://t.me/AstrodiR" target="_blank">Поддержка @AstrodiR</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2026 KvasAI</p>
+    <a href="https://t.me/AstrodiR" target="_blank">@AstrodiR</a>
+  </div>
+</footer>
+
+<button class="to-top" id="toTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Наверх"></button>
+
+<script>
+/* CANVAS PARTICLES */
+(function(){
+  const canvas=document.getElementById('bg-canvas'), ctx=canvas.getContext('2d');
+  let W,H,pts=[],mouse={x:null,y:null};
+  function resize(){ W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; }
+  function rnd(a,b){ return Math.random()*(b-a)+a; }
+  function mkPt(){ return {x:rnd(0,W),y:rnd(0,H),vx:rnd(-.16,.16),vy:rnd(-.16,.16),r:rnd(0.9,2.2),a:rnd(0.1,0.45),life:rnd(0,Math.PI*2)}; }
+  function init(){ pts=[]; const n=Math.min(Math.floor(W*H/10000),130); for(let i=0;i<n;i++) pts.push(mkPt()); }
+  function tick(){
+    ctx.clearRect(0,0,W,H);
+    for(let i=0;i<pts.length;i++){
+      for(let j=i+1;j<pts.length;j++){
+        const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.hypot(dx,dy);
+        if(d<130){ ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.strokeStyle=`rgba(212,175,55,${(1-d/130)*.1})`; ctx.lineWidth=0.5; ctx.stroke(); }
+      }
+      if(mouse.x!==null){
+        const dx=pts[i].x-mouse.x, dy=pts[i].y-mouse.y, d=Math.hypot(dx,dy);
+        if(d<180){ ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(mouse.x,mouse.y); ctx.strokeStyle=`rgba(212,175,55,${(1-d/180)*.28})`; ctx.lineWidth=0.8; ctx.stroke(); }
+      }
+    }
+    pts.forEach(p=>{
+      p.life+=0.008; p.x+=p.vx; p.y+=p.vy;
+      if(p.x<-10)p.x=W+10; if(p.x>W+10)p.x=-10;
+      if(p.y<-10)p.y=H+10; if(p.y>H+10)p.y=-10;
+      const pulse=0.5+0.5*Math.sin(p.life), a=p.a*pulse;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fillStyle=`rgba(212,175,55,${a})`; ctx.fill();
+      if(p.r>1.6){ ctx.beginPath(); ctx.arc(p.x,p.y,p.r*3,0,Math.PI*2); ctx.fillStyle=`rgba(212,175,55,${a*.09})`; ctx.fill(); }
+    });
+    requestAnimationFrame(tick);
+  }
+  window.addEventListener('resize',()=>{ resize(); init(); });
+  window.addEventListener('mousemove',e=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
+  window.addEventListener('mouseleave',()=>{ mouse.x=null; mouse.y=null; });
+  resize(); init(); tick();
+})();
+
+/* SCROLL REVEAL */
+const io=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+},{threshold:0.08});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* SCROLL-TO-TOP */
+const toTop=document.getElementById('toTop');
+window.addEventListener('scroll',()=>toTop.classList.toggle('show',scrollY>400),{passive:true});
+
+/* LOAD MODELS + animated counter */
+async function loadModels(){
+  try{
+    const res=await fetch('/v1/models'), data=await res.json(), models=data.data||[];
+
+    // animated counter
+    const el=document.getElementById('model-count');
+    const target=models.length;
+    const duration=900, steps=40, step=Math.ceil(target/steps);
+    let current=0;
+    el.textContent='0';
+    const timer=setInterval(()=>{
+      current=Math.min(current+step, target);
+      el.textContent=current;
+      if(current>=target) clearInterval(timer);
+    }, duration/steps);
+
+    // model chips
+    const grid=document.getElementById('models-grid');
+    grid.innerHTML=models.map((m,i)=>`
+      <div class="model-chip reveal" style="transition-delay:${Math.min(i*.03,.6)}s"
+           onclick="copyText('${m.id}',this)">${m.id}</div>
+    `).join('');
+    grid.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+  }catch(e){
+    document.getElementById('model-count').textContent='—';
+    document.getElementById('models-grid').innerHTML='<p style="color:var(--dim);grid-column:1/-1;padding:24px;text-align:center">Не удалось загрузить модели</p>';
+  }
+}
+
+/* LIVE DEMO */
+const SYSTEM_PROMPT = `Ты — KvasAI, умный ассистент на сайте kvasai. 
+KvasAI — это бесплатный OpenAI-совместимый API с доступом к десяткам AI-моделей: Llama, Mistral, DeepSeek, Qwen, Gemma и другим.
+Ключ можно получить мгновенно в Telegram-боте @KvasAi_bot командой /getkey — без карты и регистрации.
+Base URL: https://web-production-293e6.up.railway.app/v1
+Ты отвечаешь кратко и по делу. Если тебя спрашивают о сайте или API — рассказываешь. Если задают обычный вопрос — отвечаешь как умный ассистент.
+Отвечай на том же языке, на котором пишет пользователь.`;
+
+const DEMO_KEY = 'kvasai_demo';
+
+function getDemoState(){
+  try{
+    const s=JSON.parse(localStorage.getItem(DEMO_KEY)||'{}');
+    const today=new Date().toDateString();
+    if(s.date!==today) return {date:today, count:0};
+    return s;
+  }catch(e){ return {date:new Date().toDateString(), count:0}; }
+}
+
+function saveDemoState(state){
+  localStorage.setItem(DEMO_KEY, JSON.stringify(state));
+}
+
+function updateDemoCounter(){
+  const state=getDemoState();
+  const left=Math.max(0, 3-state.count);
+  document.getElementById('demo-left').textContent=left;
+  if(left===0){
+    document.getElementById('demo-send').disabled=true;
+    document.getElementById('demo-input').disabled=true;
+    document.getElementById('demo-input').placeholder='Лимит на сегодня исчерпан. Возвращайся завтра!';
+  }
+}
+
+async function sendDemo(){
+  const state=getDemoState();
+  if(state.count>=3) return;
+
+  const input=document.getElementById('demo-input');
+  const text=input.value.trim();
+  if(!text) return;
+
+  const model=document.getElementById('demo-model').value;
+  const send=document.getElementById('demo-send');
+  const output=document.getElementById('demo-output');
+
+  send.disabled=true;
+  input.value='';
+  output.className='demo-output visible loading';
+  output.innerHTML='<div class="dots"><span></span><span></span><span></span></div>';
+
+  try{
+    const resp=await fetch('/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer kvs-demo'},
+      body:JSON.stringify({
+        model,
+        max_tokens:500,
+        messages:[
+          {role:'system', content:SYSTEM_PROMPT},
+          {role:'user', content:text}
+        ]
+      })
+    });
+    const data=await resp.json();
+    const answer=data.choices?.[0]?.message?.content||'Что-то пошло не так, попробуй ещё раз.';
+    output.className='demo-output visible';
+    output.textContent=answer;
+
+    state.count++;
+    saveDemoState(state);
+    updateDemoCounter();
+  }catch(e){
+    output.className='demo-output visible';
+    output.textContent='Ошибка соединения. Попробуй позже.';
+  }
+
+  send.disabled=false;
+}
+
+updateDemoCounter();
+
+/* COPY */
+function copyText(text,btn){
+  navigator.clipboard.writeText(text).then(()=>{
+    const orig=btn.textContent.trim(); btn.textContent='✓'; btn.classList.add('copied');
+    setTimeout(()=>{ btn.textContent=orig; btn.classList.remove('copied'); },2000);
+  });
+}
+function copyBlock(id,btn){
+  navigator.clipboard.writeText(document.getElementById(id).innerText).then(()=>{
+    const orig=btn.textContent; btn.textContent='✓ Скопировано'; btn.classList.add('copied');
+    setTimeout(()=>{ btn.textContent=orig; btn.classList.remove('copied'); },2000);
+  });
+}
+
+/* TABS */
+function switchTab(name,btn){
+  document.querySelectorAll('.ctab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.cblock').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); document.getElementById('tab-'+name).classList.add('active');
+}
+
+window.addEventListener('load',loadModels);
+document.addEventListener('touchstart',()=>{},{passive:true});
+</script>
+</body>
+</html>
+
